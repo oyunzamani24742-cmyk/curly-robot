@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ubuntu - WebVM CheerpX</title>
+  <link rel="stylesheet" href="https://unpkg.com/xterm@5.3.0/css/xterm.css" />
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #181818; overflow: hidden; }
+    #terminal-container { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="terminal-container"></div>
+  <script src="https://unpkg.com/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script type="module">
+    import * as CheerpX from "https://cxrtnc.leaningtech.com/1.2.8/cx.esm.js";
+
+    async function initVM() {
+      const term = new Terminal({
+        cursorBlink: true,
+        convertEol: true,
+        fontFamily: "monospace",
+        fontSize: 14,
+        theme: { background: "#181818", foreground: "#f0f0f0" }
+      });
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById("terminal-container"));
+      fitAddon.fit();
+      window.addEventListener("resize", () => fitAddon.fit());
+
+      term.writeln("\x1b[33m[WebVM] Ubuntu başlatılıyor...\x1b[0m");
+
+      try {
+        const cloudDevice = await CheerpX.CloudDevice.create("wss://disks.webvm.io/ubuntu_large_20230522_5044875331.ext2");
+        const idbDevice = await CheerpX.IDBDevice.create("ubuntu_storage");
+        const overlayDevice = await CheerpX.OverlayDevice.create(cloudDevice, idbDevice);
+        const cx = await CheerpX.Linux.create({
+          mounts: [
+            { type: "ext2", path: "/", dev: overlayDevice },
+            { type: "devs", path: "/dev" }
+          ]
+        });
+        cx.registerCallback("cxReadFunc", () => {});
+        term.writeln("\x1b[32m[WebVM] Ubuntu hazır. Bash açılması Bekleniyor...\x1b[0m\n");
+        await cx.run("/bin/bash", ["--login"], {
+          env: [
+            "HOME=/home/user",
+            "USER=user",
+            "SHELL=/bin/bash",
+            "TERM=xterm-256color",
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          ]
+        });
+      } catch (error) {
+        term.writeln(`\r\n\x1b[31m[Hata] Ubuntu başlatılamadı: ${error.message}\x1b[0m`);
+      }
+    }
+    window.addEventListener("DOMContentLoaded", initVM);
+  </script>
+</body>
+</html>
